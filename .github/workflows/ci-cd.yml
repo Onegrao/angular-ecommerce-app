@@ -34,11 +34,11 @@ jobs:
         working-directory: ${{ env.FRONT_PATH }}
         run: |
           IMAGE=${{ env.DOCKERHUB_USER }}/frontend
-          echo "Building image: $IMAGE:1"
+          echo "Building image: $IMAGE:latest"
 
-          docker build -t ${IMAGE}:1 -t ${IMAGE}:1 .
+          docker build -t ${IMAGE}:1 -t ${IMAGE}:latest .
           docker push ${IMAGE}:1
-          docker push ${IMAGE}:1
+          docker push ${IMAGE}:latest
         env:
           DOCKER_BUILDKIT: 1
 
@@ -60,11 +60,14 @@ jobs:
           port: 22
           script: |
             set -e
-            IMAGE="${{ env.DOCKERHUB_USER }}/frontend:1"
+            IMAGE="${{ env.DOCKERHUB_USER }}/frontend:latest"
             echo "Deploying image: $IMAGE"
 
             # Atualiza o container no deployment existente
-            sudo kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.FRONT_DEPLOYMENT_NAME }} ${{ env.FRONT_CONTAINER_NAME }}=$IMAGE --record
-            sudo kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.FRONT_DEPLOYMENT_NAME }} --timeout=120s
+            kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.FRONT_DEPLOYMENT_NAME }} ${{ env.FRONT_CONTAINER_NAME }}=$IMAGE --record
+            kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.FRONT_DEPLOYMENT_NAME }} --timeout=120s
+
+            # Debug: verificar qual imagem está rodando nos pods
+            kubectl -n ${{ env.NAMESPACE }} get deployment ${{ env.FRONT_DEPLOYMENT_NAME }} -o yaml | grep image
 
             echo "✅ Deploy do frontend finalizado com sucesso!"
