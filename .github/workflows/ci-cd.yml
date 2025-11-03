@@ -1,35 +1,25 @@
-name: CI/CD - Build & Deploy to K8s (EC2)
+name: CI/CD - Build & Deploy Frontend to K8s (EC2)
 
 on:
   push:
     branches:
-      - master
+      - master  # ou main, conforme o nome da sua branch principal
 
 env:
-  # Ajuste se necessário
   DOCKERHUB_USER: onegrao
-  FRONT_PATH: frontend
-  BACK_PATH: backend
-  NAMESPACE: app-demo
-
-  # Nomes usados para atualizar o k8s. Se o backend tiver nomes diferentes, modifique aqui.
+  FRONT_PATH: client        # caminho do frontend no repositório
+  NAMESPACE: app-demo       # namespace do cluster
   FRONT_DEPLOYMENT_NAME: frontend
   FRONT_CONTAINER_NAME: web
 
-  BACK_DEPLOYMENT_NAME: backend
-  BACK_CONTAINER_NAME: backend
-
 jobs:
   build-and-push:
-    name: Build images and push to Docker Hub
+    name: Build and Push Frontend Image
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU (optional, for multi-arch builds)
-        uses: docker/setup-qemu-action@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -40,40 +30,29 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & push frontend image (sha + latest)
+      - name: Build and Push Docker Image
         working-directory: ${{ env.FRONT_PATH }}
         run: |
-          export TAG_SHA=${GITHUB_SHA}
           IMAGE=${{ env.DOCKERHUB_USER }}/frontend
-          # build
-          docker build -t ${IMAGE}:${TAG_SHA} -t ${IMAGE}:latest .
-          # push both tags
-          docker push ${IMAGE}:${TAG_SHA}
-          docker push ${IMAGE}:latest
-        env:
-          DOCKER_BUILDKIT: 1
+          TAG_SHA=${GITHUB_SHA}
+          echo "Building image: $IMAGE:$TAG_SHA"
 
-      - name: Build & push backend image (sha + latest)
-        working-directory: ${{ env.BACK_PATH }}
-        run: |
-          export TAG_SHA=${GITHUB_SHA}
-          IMAGE=${{ env.DOCKERHUB_USER }}/backend
-          docker build -t ${IMAGE}:${TAG_SHA} -t ${IMAGE}:latest .
+          docker build -t ${IMAGE}:${TAG_SHA} -t ${IMAGE}:1 .
           docker push ${IMAGE}:${TAG_SHA}
-          docker push ${IMAGE}:latest
+          docker push ${IMAGE}:1
         env:
           DOCKER_BUILDKIT: 1
 
   deploy:
-    name: Deploy to cluster via EC2 (kubectl)
+    name: Deploy to K3s on EC2
     needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo (for k8s manifests if needed)
+      - name: Checkout repo (for manifests)
         uses: actions/checkout@v4
 
-      - name: Connect to EC2 and update deployments
+      - name: SSH into EC2 and Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -82,39 +61,11 @@ jobs:
           port: 22
           script: |
             set -e
+            IMAGE="${{ env.DOCKERHUB_USER }}/frontend:${GITHUB_SHA}"
+            echo "Deploying image: $IMAGE"
 
-            echo "Usuário remoto: $(whoami) - atualizando imagens..."
-            IMAGE_FRONT="${{ env.DOCKERHUB_USER }}/frontend:${GITHUB_SHA}"
-            IMAGE_BACK="${{ env.DOCKERHUB_USER }}/backend:${GITHUB_SHA}"
-            NAMESPACE="${{ env.NAMESPACE }}"
+            # Atualiza o container no deployment existente
+            kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.FRONT_DEPLOYMENT_NAME }} ${{ env.FRONT_CONTAINER_NAME }}=$IMAGE --record
+            kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.FRONT_DEPLOYMENT_NAME }} --timeout=120s
 
-            echo "Front image: $IMAGE_FRONT"
-            echo "Back image:  $IMAGE_BACK"
-            echo "Namespace:   $NAMESPACE"
-
-            # Verifica se kubectl está disponível
-            if ! command -v kubectl >/dev/null 2>&1; then
-              echo "kubectl não encontrado na instância. Instale e configure kubectl (kubeconfig) antes de rodar o workflow."
-              exit 1
-            fi
-
-            # Atualiza imagem do frontend
-            echo "Atualizando deployment ${FRONT_DEPLOYMENT_NAME} (container ${FRONT_CONTAINER_NAME})..."
-            kubectl -n "$NAMESPACE" set image deployment/${FRONT_DEPLOYMENT_NAME} ${FRONT_CONTAINER_NAME}=$IMAGE_FRONT --record
-            kubectl -n "$NAMESPACE" rollout status deployment/${FRONT_DEPLOYMENT_NAME} --timeout=120s
-
-            # Atualiza imagem do backend
-            echo "Atualizando deployment ${BACK_DEPLOYMENT_NAME} (container ${BACK_CONTAINER_NAME})..."
-            kubectl -n "$NAMESPACE" set image deployment/${BACK_DEPLOYMENT_NAME} ${BACK_CONTAINER_NAME}=$IMAGE_BACK --record
-            kubectl -n "$NAMESPACE" rollout status deployment/${BACK_DEPLOYMENT_NAME} --timeout=120s
-
-            echo "Deploy finalizado."
-
-        # passar variáveis de ambiente para o script remoto
-        env:
-          FRONT_DEPLOYMENT_NAME: ${{ env.FRONT_DEPLOYMENT_NAME }}
-          FRONT_CONTAINER_NAME: ${{ env.FRONT_CONTAINER_NAME }}
-          BACK_DEPLOYMENT_NAME: ${{ env.BACK_DEPLOYMENT_NAME }}
-          BACK_CONTAINER_NAME: ${{ env.BACK_CONTAINER_NAME }}
-
-
+            echo "✅ Deploy do frontend finalizado com sucesso!"
