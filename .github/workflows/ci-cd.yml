@@ -34,7 +34,8 @@ jobs:
         working-directory: ${{ env.FRONT_PATH }}
         run: |
           IMAGE=${{ env.DOCKERHUB_USER }}/frontend
-          echo "Building image: $IMAGE:latest"
+          echo "Docker Image: $IMAGE"
+          echo "Building image: $IMAGE:1"
 
           docker build -t ${IMAGE}:1 -t ${IMAGE}:latest .
           docker push ${IMAGE}:1
