@@ -64,7 +64,7 @@ jobs:
             echo "Deploying image: $IMAGE"
 
             # Atualiza o container no deployment existente
-            kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.FRONT_DEPLOYMENT_NAME }} ${{ env.FRONT_CONTAINER_NAME }}=$IMAGE --record
-            kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.FRONT_DEPLOYMENT_NAME }} --timeout=120s
+            sudo kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.FRONT_DEPLOYMENT_NAME }} ${{ env.FRONT_CONTAINER_NAME }}=$IMAGE --record
+            sudo kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.FRONT_DEPLOYMENT_NAME }} --timeout=120s
 
             echo "✅ Deploy do frontend finalizado com sucesso!"
