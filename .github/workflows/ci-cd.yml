@@ -34,11 +34,10 @@ jobs:
         working-directory: ${{ env.FRONT_PATH }}
         run: |
           IMAGE=${{ env.DOCKERHUB_USER }}/frontend
-          TAG_SHA=${GITHUB_SHA}
-          echo "Building image: $IMAGE:$TAG_SHA"
+          echo "Building image: $IMAGE:1"
 
-          docker build -t ${IMAGE}:${TAG_SHA} -t ${IMAGE}:1 .
-          docker push ${IMAGE}:${TAG_SHA}
+          docker build -t ${IMAGE}:1 -t ${IMAGE}:1 .
+          docker push ${IMAGE}:1
           docker push ${IMAGE}:1
         env:
           DOCKER_BUILDKIT: 1
@@ -61,7 +60,7 @@ jobs:
           port: 22
           script: |
             set -e
-            IMAGE="${{ env.DOCKERHUB_USER }}/frontend:${GITHUB_SHA}"
+            IMAGE="${{ env.DOCKERHUB_USER }}/frontend:1"
             echo "Deploying image: $IMAGE"
 
             # Atualiza o container no deployment existente
